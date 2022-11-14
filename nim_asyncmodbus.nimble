@@ -5,6 +5,7 @@ author        = "Takeyoshi Kikuchi"
 description   = "Nim Asynchronous Modbus library."
 license       = "MIT"
 srcDir        = "src"
+binDir        = "bin"
 installExt    = @["nim"]
 bin           = @["nim_asyncmodbus"]
 
