@@ -56,12 +56,12 @@ proc `$`*(buf: seq[uint8|char]): string =
 
 when isMainModule:
   var buf = newSeq[uint8](4)
-  buf.set16(0, 0x1234)
-  buf.set16(2, 0x5678)
+  buf.set_be16(0, 0x1234)
+  buf.set_be16(2, 0x5678)
   echo buf.mapIt(&"{it:02x}")
-  let val_1 = buf.get16(1)
+  let val_1 = buf.get_be16(1)
   echo &"0x{val_1:04x}"
-  let val_over = buf.get16(16)
+  let val_over = buf.get_be16(16)
   echo &"0x{val_over:04x}"
   let payload = buf.toString()
   let hexstr = payload.mapIt(&"{it.int:02x}").join(", ")

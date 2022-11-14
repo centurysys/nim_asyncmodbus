@@ -1,3 +1,2 @@
-import nim_modbuspkg/rtu
-import nim_modbuspkg/tcp
-export rtu, tcp
+import nim_modbuspkg/[core, rtu, tcp]
+export core, rtu, tcp
