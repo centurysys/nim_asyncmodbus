@@ -1,4 +1,5 @@
 import std/asyncdispatch
+import std/options
 
 type
   ModbusCtxObj* = object of RootObj
@@ -18,6 +19,10 @@ type
     fcReportSlaveId = 0x11
   DiagCode* = enum
     dcReturnQueryData = 0x00
+  ErrorCode* = enum
+    errInvalidFunction = 1
+    errInvalidAddress = 2
+    errInvalidData = 3
   CoilStatus* = enum
     CollOff = 0x0000
     CoilOn = 0xff00
@@ -48,6 +53,11 @@ method read_input_registers*(self: ModbusCtx, regAddr: uint16, nb: uint16):
 method write_bit*(self: ModbusCtx, regAddr: uint16, onoff: bool): Future[bool]
     {.base, async, locks: "unknown".} =
   discard
+
+func normalize_regaddr*(regAddr: uint16): Option[uint16] =
+  let val = (regAddr mod 10000).uint16
+  if val >= 1 and val <= 9999:
+    result = some(val)
 
 # ------------------------------------------------------------------------------
 # Parse Response: function code 0x01/0x02

@@ -104,12 +104,15 @@ proc setup_header(self: ModbusTcp, buf: var openArray[uint8], unitId: uint8,
 # ------------------------------------------------------------------------------
 proc query_command(self: ModbusTcp, unitId: uint8, cmd: FunctionCode, regAddr: uint16,
     nb: uint16): Future[seq[char]] {.async.} =
+  let addr_opt = normalize_regaddr(regAddr)
+  if addr_opt.isNone:
+    return
   const
     dataLen = 2 + 4
     payloadLen = 6 + dataLen
   var buf = newSeq[uint8](payloadLen)
   self.setup_header(buf, unitId, cmd)
-  buf.set_be16(8, regAddr - 1)
+  buf.set_be16(8, addr_opt.get - 1)
   buf.set_be16(10, nb.uint16)
   buf.set_be16(4, dataLen)
   let payload = buf.toString()
@@ -123,12 +126,15 @@ proc query_command(self: ModbusTcp, unitId: uint8, cmd: FunctionCode, regAddr: u
 # ------------------------------------------------------------------------------
 proc write_command(self: ModbusTcp, unitId: uint8, cmd: FunctionCode, regAddr: uint16,
     buf: ptr uint8, size: uint8): Future[seq[char]] {.async.} =
+  let addr_opt = normalize_regaddr(regAddr)
+  if addr_opt.isNone:
+    return
   let
     dataLen: uint8 = 2 + 4 + size
     payloadLen: uint8 = 6 + dataLen
   var sendbuf = newSeq[uint8](payloadLen)
   self.setup_header(sendbuf, unitId, cmd)
-  sendbuf.set_be16(8, regAddr - 1)
+  sendbuf.set_be16(8, addr_opt.get - 1)
   for idx in 0 ..< size.int:
     sendbuf[10 + idx] = buf[idx]
   sendbuf.set_be16(4, dataLen)
@@ -218,7 +224,7 @@ when isMainModule:
     let tcp = newModbusTcp("172.16.1.29", 502)
     #discard await tcp.connect()
     await tcp.read_do_values()
-    let input_regs = await tcp.read_input_registers(1, 17)
+    let input_regs = await tcp.read_input_registers(30001, 17)
     echo input_regs
     echo "--- set do0 --> on"
     discard await tcp.write_bit(1, true)

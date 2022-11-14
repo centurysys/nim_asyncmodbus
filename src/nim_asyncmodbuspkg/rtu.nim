@@ -128,16 +128,20 @@ method connect*(self: ModbusRtu, timeout: uint = 0): Future[bool] {.async.} =
 method close*(self: ModbusRtu) =
   if self.ser.isOpen:
     self.ser.close()
+    self.slaveAddr = none(SlaveAddr)
 
 # ------------------------------------------------------------------------------
 # Modbus/RTU Query function
 # ------------------------------------------------------------------------------
 proc query_command(self: ModbusRtu, cmd: FunctionCode, regAddr: uint16, nb: uint16):
     Future[seq[char]] {.async.} =
+  let addr_opt = normalize_regaddr(regAddr)
+  if addr_opt.isNone:
+    return
   var buf = newSeq[uint8](8)
   buf[0] = self.slaveAddr.get.uint8
   buf[1] = cmd.uint8
-  buf.set_be16(2, regAddr - 1)
+  buf.set_be16(2, addr_opt.get - 1)
   buf.set_be16(4, nb)
   buf.set_crc(6)
   let payload = buf.toString()
@@ -154,12 +158,14 @@ proc query_command(self: ModbusRtu, cmd: FunctionCode, regAddr: uint16, nb: uint
 # ------------------------------------------------------------------------------
 proc write_command(self: ModbusRtu, cmd: FunctionCode, regAddr: uint16,
     buf: ptr uint8, size: uint8): Future[seq[char]] {.async.} =
-  let
-    payloadLen: uint8 = 4 + size + 2
+  let addr_opt = normalize_regaddr(regAddr)
+  if addr_opt.isNone:
+    return
+  let payloadLen: uint8 = 4 + size + 2
   var sendbuf = newSeq[uint8](payloadLen)
   sendbuf[0] = self.slaveAddr.get.uint8
   sendbuf[1] = cmd.uint8
-  sendbuf.set_be16(2, regAddr - 1)
+  sendbuf.set_be16(2, addr_opt.get - 1)
   for idx in 0 ..< size.int:
     sendbuf[4 + idx] = buf[idx]
   sendbuf.set_crc(payloadlen - 2)
@@ -235,7 +241,7 @@ when isMainModule:
     await rtu.read_do_values()
     let status = await rtu.read_input_bits(1, 8)
     echo status
-    let input_regs = await rtu.read_input_registers(1, 17)
+    let input_regs = await rtu.read_input_registers(30001, 17)
     echo input_regs
     echo "--- set do0 --> on"
     discard await rtu.write_bit(1, true)
