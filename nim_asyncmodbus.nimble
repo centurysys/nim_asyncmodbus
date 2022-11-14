@@ -2,11 +2,11 @@
 
 version       = "0.1.0"
 author        = "Takeyoshi Kikuchi"
-description   = "Nim Modbus library."
+description   = "Nim Asynchronous Modbus library."
 license       = "MIT"
 srcDir        = "src"
 installExt    = @["nim"]
-bin           = @["nim_modbus"]
+bin           = @["nim_asyncmodbus"]
 
 
 # Dependencies
