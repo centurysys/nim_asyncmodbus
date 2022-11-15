@@ -19,7 +19,7 @@ type
     port: string
     ser: AsyncSerialPort
     params: SerialParams
-    slaveAddr: Option[SlaveAddr]
+    slaveAddr: uint8
     interval: int
     readTimeout: int32
     writeTimeout: int32
@@ -44,6 +44,12 @@ proc newModbusRtu*(device: string, baud: int32 = 19200, parity = Parity.None,
   rtu.interval = ((nsec_per_char * 4) / 1000000).int32 + 1
   rtu.debug = debug
   result = rtu
+
+# ------------------------------------------------------------------------------
+#
+# ------------------------------------------------------------------------------
+func is_valid_address(address: uint8): bool =
+  result = (address >= 1) and (address <= 247)
 
 # ------------------------------------------------------------------------------
 #
@@ -108,16 +114,16 @@ proc check_crc(buf: openArray[uint8|char]): bool =
 # ------------------------------------------------------------------------------
 #
 # ------------------------------------------------------------------------------
-proc set_slave*(self: ModbusRtu, slaveAddr: SlaveAddr): bool =
-  if not self.ser.isOpen:
-    self.slaveAddr = some(slaveAddr)
+proc set_slave*(self: ModbusRtu, slaveAddr: uint8): bool =
+  if slaveAddr.is_valid_address:
+    self.slaveAddr = slaveAddr
     result = true
 
 # ------------------------------------------------------------------------------
 # API:
 # ------------------------------------------------------------------------------
 method connect*(self: ModbusRtu, timeout: uint = 0): Future[bool] {.async.} =
-  if self.ser.isOpen or self.slaveAddr.isNone:
+  if self.ser.isOpen:
     return
   let params = self.params
   self.ser.open(params.baud, params.parity, params.dataBits, params.stopBits)
@@ -128,18 +134,17 @@ method connect*(self: ModbusRtu, timeout: uint = 0): Future[bool] {.async.} =
 method close*(self: ModbusRtu) =
   if self.ser.isOpen:
     self.ser.close()
-    self.slaveAddr = none(SlaveAddr)
 
 # ------------------------------------------------------------------------------
 # Modbus/RTU Query function
 # ------------------------------------------------------------------------------
-proc query_command(self: ModbusRtu, cmd: FunctionCode, regAddr: uint16, nb: uint16):
-    Future[seq[char]] {.async.} =
+proc query_command(self: ModbusRtu, slaveAddr: uint8, cmd: FunctionCode,
+    regAddr: uint16, nb: uint16): Future[seq[char]] {.async.} =
   let addr_opt = normalize_regaddr(regAddr)
   if addr_opt.isNone:
     return
   var buf = newSeq[uint8](8)
-  buf[0] = self.slaveAddr.get.uint8
+  buf[0] = slaveAddr
   buf[1] = cmd.uint8
   buf.set_be16(2, addr_opt.get - 1)
   buf.set_be16(4, nb)
@@ -156,14 +161,14 @@ proc query_command(self: ModbusRtu, cmd: FunctionCode, regAddr: uint16, nb: uint
 # ------------------------------------------------------------------------------
 # Modbus/RTU Write function
 # ------------------------------------------------------------------------------
-proc write_command(self: ModbusRtu, cmd: FunctionCode, regAddr: uint16,
-    buf: ptr uint8, size: uint8): Future[seq[char]] {.async.} =
+proc write_command(self: ModbusRtu, slaveAddr: uint8, cmd: FunctionCode,
+    regAddr: uint16, buf: ptr uint8, size: uint8): Future[seq[char]] {.async.} =
   let addr_opt = normalize_regaddr(regAddr)
   if addr_opt.isNone:
     return
   let payloadLen: uint8 = 4 + size + 2
   var sendbuf = newSeq[uint8](payloadLen)
-  sendbuf[0] = self.slaveAddr.get.uint8
+  sendbuf[0] = slaveAddr
   sendbuf[1] = cmd.uint8
   sendbuf.set_be16(2, addr_opt.get - 1)
   for idx in 0 ..< size.int:
@@ -181,51 +186,82 @@ proc write_command(self: ModbusRtu, cmd: FunctionCode, regAddr: uint16,
 # ------------------------------------------------------------------------------
 # Modbus function code 0x01: (read coil status)
 # ------------------------------------------------------------------------------
+method read_bits*(self: ModbusRtu, target: uint8, regAddr: uint16,
+    nb: uint16): Future[seq[bool]] {.async.} =
+  if target.is_valid_address:
+    let buf = await self.query_command(target, fcReadCoilStatus,
+        regAddr, nb)
+    if buf.len > 0:
+      result = parse_coil_status(buf[3..^3], nb)
+
 method read_bits*(self: ModbusRtu, regAddr: uint16, nb: uint16):
     Future[seq[bool]] {.async.} =
-  let buf = await self.query_command(fcReadCoilStatus, regAddr, nb)
-  if buf.len > 0:
-    result = parse_coil_status(buf[3..^3], nb)
+  result = await self.read_bits(self.slaveAddr, regAddr, nb)
 
 # ------------------------------------------------------------------------------
 # Modbus function code 0x02: (read input bits)
 # ------------------------------------------------------------------------------
+method read_input_bits*(self: ModbusRtu, target: uint8, regAddr: uint16,
+    nb: uint16): Future[seq[bool]] {.async.} =
+  if target.is_valid_address:
+    let buf = await self.query_command(target, fcReadInputStatus,
+        regAddr, nb)
+    if buf.len > 0:
+      result = parse_coil_status(buf[3..^3], nb)
+
 method read_input_bits*(self: ModbusRtu, regAddr: uint16, nb: uint16):
     Future[seq[bool]] {.async.} =
-  let buf = await self.query_command(fcReadInputStatus, regAddr, nb)
-  if buf.len > 0:
-    result = parse_coil_status(buf[3..^3], nb)
+  result = await self.read_input_bits(self.slaveAddr, regAddr, nb)
 
 # ------------------------------------------------------------------------------
 # Modbus function code 0x03: (read holding registers)
 # ------------------------------------------------------------------------------
+method read_registers*(self: ModbusRtu, target: uint8, regAddr: uint16,
+    nb: uint16): Future[seq[uint16]] {.async.} =
+  if target.is_valid_address:
+    let buf = await self.query_command(target, fcReadHoldingRegister,
+        regAddr, nb)
+    if buf.len > 0:
+      result = buf.to_seq_u16(3, nb)
+
 method read_registers*(self: ModbusRtu, regAddr: uint16, nb: uint16):
     Future[seq[uint16]] {.async.} =
-  let buf = await self.query_command(fcReadHoldingRegister, regAddr, nb)
-  if buf.len > 0:
-    result = buf.to_seq_u16(3, nb)
+  result = await self.read_registers(self.slaveAddr, regAddr, nb)
 
 # ------------------------------------------------------------------------------
 # Modbus function code 0x04: (read input registers)
 # ------------------------------------------------------------------------------
+method read_input_registers*(self: ModbusRtu, target: uint8, regAddr: uint16,
+    nb: uint16): Future[seq[uint16]] {.async.} =
+  if target.is_valid_address:
+    let buf = await self.query_command(target, fcReadInputRegister,
+        regAddr, nb)
+    if buf.len > 0:
+      result = buf.to_seq_u16(3, nb)
+
 method read_input_registers*(self: ModbusRtu, regAddr: uint16, nb: uint16):
     Future[seq[uint16]] {.async.} =
-  let buf = await self.query_command(fcReadInputRegister, regAddr, nb)
-  if buf.len > 0:
-    result = buf.to_seq_u16(3, nb)
+  result = await self.read_input_registers(self.slaveAddr, regAddr, nb)
 
 # ------------------------------------------------------------------------------
-# Modbus function code 0x03: (force single coil)
+# Modbus function code 0x05: (force single coil)
 # ------------------------------------------------------------------------------
+method write_bit*(self: ModbusRtu, target: uint8, regAddr: uint16, onoff: bool):
+    Future[bool] {.async.} =
+  if target.is_valid_address:
+    var buf = newSeq[uint8](2)
+    if onoff:
+      buf.set_be16(0, CoilOn.uint16)
+    let res = await self.write_command(target, fcForceSingleCoil, regAddr,
+        addr buf[0], 2)
+    if res.len > 0:
+      let data = res.get_be16(4)
+      if ((data == CoilOn.uint16) and onoff) or
+          ((data == CoilOff.uint16) and (not onoff)):
+        result = true
+
 method write_bit*(self: ModbusRtu, regAddr: uint16, onoff: bool): Future[bool] {.async.} =
-  var buf = newSeq[uint8](2)
-  if onoff:
-    buf.set_be16(0, CoilOn.uint16)
-  let res = await self.write_command(fcForceSingleCoil, regAddr, addr buf[0], 2)
-  if res.len > 0:
-    let data = res.get_be16(4)
-    if data == CoilOn.uint16:
-      result = true
+  result = await self.write_bit(self.slaveAddr, regAddr, onoff)
 
 
 when isMainModule:
@@ -236,7 +272,7 @@ when isMainModule:
 
   proc asyncMain() {.async.} =
     let rtu = newModbusRtu("/dev/ttyS3", 19200)
-    discard rtu.set_slave(SlaveAddr(2))
+    discard rtu.set_slave(2)
     discard rtu.connect()
     await rtu.read_do_values()
     let status = await rtu.read_input_bits(1, 8)

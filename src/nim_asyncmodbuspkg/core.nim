@@ -24,7 +24,7 @@ type
     errInvalidAddress = 2
     errInvalidData = 3
   CoilStatus* = enum
-    CollOff = 0x0000
+    CoilOff = 0x0000
     CoilOn = 0xff00
 
 
@@ -34,20 +34,40 @@ method connect*(self: ModbusCtx, timeout: uint): Future[bool] {.base, async, loc
 method close*(self: ModbusCtx) {.base, locks: "unknown".} =
   discard
 
-method read_bits*(self: ModbusCtx, regAddr: uint16, nb: uint16): Future[seq[bool]]
-    {.base, async, locks: "unknown".} =
+method read_bits*(self: ModbusCtx, target: uint8, regAddr: uint16,
+    nb: uint16): Future[seq[bool]] {.base, async, locks: "unknown".} =
+  discard
+
+method read_bits*(self: ModbusCtx, regAddr: uint16, nb: uint16):
+    Future[seq[bool]] {.base, async, locks: "unknown".} =
+  discard
+
+method read_input_bits*(self: ModbusCtx, target: uint8, regAddr: uint16,
+    nb: uint16): Future[seq[bool]] {.base, async, locks: "unknown".} =
   discard
 
 method read_input_bits*(self: ModbusCtx, regAddr: uint16, nb: uint16):
     Future[seq[bool]] {.base, async, locks: "unknown".} =
   discard
 
+method read_registers*(self: ModbusCtx, target: uint8, regAddr: uint16,
+    nb: uint16): Future[seq[uint16]] {.base, async, locks: "unknown".} =
+  discard
+
 method read_registers*(self: ModbusCtx, regAddr: uint16, nb: uint16):
     Future[seq[uint16]] {.base, async, locks: "unknown".} =
   discard
 
+method read_input_registers*(self: ModbusCtx, target: uint8, regAddr: uint16,
+    nb: uint16): Future[seq[uint16]] {.base, async, locks: "unknown".} =
+  discard
+
 method read_input_registers*(self: ModbusCtx, regAddr: uint16, nb: uint16):
     Future[seq[uint16]] {.base, async, locks: "unknown".} =
+  discard
+
+method write_bit*(self: ModbusCtx, target: uint8, regAddr: uint16, onoff: bool):
+    Future[bool] {.base, async, locks: "unknown".} =
   discard
 
 method write_bit*(self: ModbusCtx, regAddr: uint16, onoff: bool): Future[bool]

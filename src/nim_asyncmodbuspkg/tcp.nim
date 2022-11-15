@@ -92,17 +92,17 @@ proc send_recv(self: ModbusTcp, payload: string, timeout: int = 0):
 # ------------------------------------------------------------------------------
 #
 # ------------------------------------------------------------------------------
-proc setup_header(self: ModbusTcp, buf: var openArray[uint8], unitId: uint8,
+proc setup_header(self: ModbusTcp, buf: var openArray[uint8], target: uint8,
     cmd: FunctionCode) =
   self.transactionId.inc
   buf.set_be16(0, self.transactionId)
-  buf[6] = unitId
+  buf[6] = target
   buf[7] = cmd.uint8
 
 # ------------------------------------------------------------------------------
 # Modbus/TCP Query function
 # ------------------------------------------------------------------------------
-proc query_command(self: ModbusTcp, unitId: uint8, cmd: FunctionCode, regAddr: uint16,
+proc query_command(self: ModbusTcp, target: uint8, cmd: FunctionCode, regAddr: uint16,
     nb: uint16): Future[seq[char]] {.async.} =
   let addr_opt = normalize_regaddr(regAddr)
   if addr_opt.isNone:
@@ -111,7 +111,7 @@ proc query_command(self: ModbusTcp, unitId: uint8, cmd: FunctionCode, regAddr: u
     dataLen = 2 + 4
     payloadLen = 6 + dataLen
   var buf = newSeq[uint8](payloadLen)
-  self.setup_header(buf, unitId, cmd)
+  self.setup_header(buf, target, cmd)
   buf.set_be16(8, addr_opt.get - 1)
   buf.set_be16(10, nb.uint16)
   buf.set_be16(4, dataLen)
@@ -124,7 +124,7 @@ proc query_command(self: ModbusTcp, unitId: uint8, cmd: FunctionCode, regAddr: u
 # ------------------------------------------------------------------------------
 # Modbus/TCP Write function
 # ------------------------------------------------------------------------------
-proc write_command(self: ModbusTcp, unitId: uint8, cmd: FunctionCode, regAddr: uint16,
+proc write_command(self: ModbusTcp, target: uint8, cmd: FunctionCode, regAddr: uint16,
     buf: ptr uint8, size: uint8): Future[seq[char]] {.async.} =
   let addr_opt = normalize_regaddr(regAddr)
   if addr_opt.isNone:
@@ -133,7 +133,7 @@ proc write_command(self: ModbusTcp, unitId: uint8, cmd: FunctionCode, regAddr: u
     dataLen: uint8 = 2 + 4 + size
     payloadLen: uint8 = 6 + dataLen
   var sendbuf = newSeq[uint8](payloadLen)
-  self.setup_header(sendbuf, unitId, cmd)
+  self.setup_header(sendbuf, target, cmd)
   sendbuf.set_be16(8, addr_opt.get - 1)
   for idx in 0 ..< size.int:
     sendbuf[10 + idx] = buf[idx]
@@ -147,9 +147,9 @@ proc write_command(self: ModbusTcp, unitId: uint8, cmd: FunctionCode, regAddr: u
 # ------------------------------------------------------------------------------
 # Modbus function code 0x01: (read coil status)
 # ------------------------------------------------------------------------------
-proc read_bits*(self: ModbusTcp, unitId: uint8, regAddr: uint16, nb: uint16):
+method read_bits*(self: ModbusTcp, target: uint8, regAddr: uint16, nb: uint16):
     Future[seq[bool]] {.async.} =
-  let res = await self.query_command(unitId, fcReadCoilStatus, regAddr, nb)
+  let res = await self.query_command(target, fcReadCoilStatus, regAddr, nb)
   if res.len >= 3:
     result = parse_coil_status(res[3..^1], nb)
 
@@ -160,9 +160,9 @@ method read_bits*(self: ModbusTcp, regAddr: uint16, nb: uint16): Future[seq[bool
 # ------------------------------------------------------------------------------
 # Modbus function code 0x02: (read input bits)
 # ------------------------------------------------------------------------------
-proc read_input_bits*(self: ModbusTcp, unitId: uint8, regAddr: uint16, nb: uint16):
+method read_input_bits*(self: ModbusTcp, target: uint8, regAddr: uint16, nb: uint16):
     Future[seq[bool]] {.async.} =
-  let res = await self.query_command(unitId, fcReadInputStatus, regAddr, nb)
+  let res = await self.query_command(target, fcReadInputStatus, regAddr, nb)
   if res.len >= 3:
     result = parse_coil_status(res[3..^1], nb)
 
@@ -173,9 +173,9 @@ method read_input_bits*(self: ModbusTcp, regAddr: uint16, nb: uint16):
 # ------------------------------------------------------------------------------
 # Modbus function code 0x03: (read holding registers)
 # ------------------------------------------------------------------------------
-proc read_registers*(self: ModbusTcp, unitId: uint8, regAddr: uint16, nb: uint16):
+method read_registers*(self: ModbusTcp, target: uint8, regAddr: uint16, nb: uint16):
     Future[seq[uint16]] {.async.} =
-  let res = await self.query_command(unitId, fcReadHoldingRegister, regAddr, nb)
+  let res = await self.query_command(target, fcReadHoldingRegister, regAddr, nb)
   if res.len > 0:
     result = res.to_seq_u16(3, nb)
 
@@ -186,9 +186,9 @@ method read_registers*(self: ModbusTcp, regAddr: uint16, nb: uint16):
 # ------------------------------------------------------------------------------
 # Modbus function code 0x04: (read input registers)
 # ------------------------------------------------------------------------------
-proc read_input_registers*(self: ModbusTcp, unitId: uint8, regAddr: uint16,
+method read_input_registers*(self: ModbusTcp, target: uint8, regAddr: uint16,
     nb: uint16): Future[seq[uint16]] {.async.} =
-  let res = await self.query_command(unitId, fcReadInputRegister, regAddr, nb)
+  let res = await self.query_command(target, fcReadInputRegister, regAddr, nb)
   if res.len > 0:
     result = res.to_seq_u16(3, nb)
 
@@ -199,15 +199,16 @@ method read_input_registers*(self: ModbusTcp, regAddr: uint16, nb: uint16):
 # ------------------------------------------------------------------------------
 # Modbus function code 0x03: (force single coil)
 # ------------------------------------------------------------------------------
-proc write_bit*(self: ModbusTcp, unitId: uint8, regAddr: uint16, onoff: bool):
+method write_bit*(self: ModbusTcp, target: uint8, regAddr: uint16, onoff: bool):
     Future[bool] {.async.} =
   var buf = newSeq[uint8](2)
   if onoff:
     buf.set_be16(0, CoilOn.uint16)
-  let res = await self.write_command(unitId, fcForceSingleCoil, regAddr, addr buf[0], 2)
+  let res = await self.write_command(target, fcForceSingleCoil, regAddr, addr buf[0], 2)
   if res.len > 0:
     let data = res.get_be16(4)
-    if data == CoilOn.uint16:
+    if ((data == CoilOn.uint16) and onoff) or
+        ((data == CoilOff.uint16) and (not onoff)):
       result = true
 
 method write_bit*(self: ModbusTcp, regAddr: uint16, onoff: bool): Future[bool] {.async.} =
