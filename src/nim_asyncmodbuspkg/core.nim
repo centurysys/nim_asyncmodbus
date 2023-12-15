@@ -23,55 +23,60 @@ type
     errInvalidFunction = 1
     errInvalidAddress = 2
     errInvalidData = 3
+    errServerFailure = 4
+    errAcknowledge = 5
+    errServerBusy = 6
+    errGatewayProblem0A = 0x0a
+    errGatewayProblem0B = 0x0b
   CoilStatus* = enum
     CoilOff = 0x0000
     CoilOn = 0xff00
 
 
-method connect*(self: ModbusCtx, timeout: uint): Future[bool] {.base, async, locks: "unknown".} =
+method connect*(self: ModbusCtx, timeout: uint): Future[bool] {.base, async.} =
   discard
 
-method close*(self: ModbusCtx) {.base, locks: "unknown".} =
+method close*(self: ModbusCtx) {.base.} =
   discard
 
 method read_bits*(self: ModbusCtx, target: uint8, regAddr: uint16,
-    nb: uint16): Future[seq[bool]] {.base, async, locks: "unknown".} =
+    nb: uint16): Future[seq[bool]] {.base, async.} =
   discard
 
 method read_bits*(self: ModbusCtx, regAddr: uint16, nb: uint16):
-    Future[seq[bool]] {.base, async, locks: "unknown".} =
+    Future[seq[bool]] {.base, async.} =
   discard
 
 method read_input_bits*(self: ModbusCtx, target: uint8, regAddr: uint16,
-    nb: uint16): Future[seq[bool]] {.base, async, locks: "unknown".} =
+    nb: uint16): Future[seq[bool]] {.base, async.} =
   discard
 
 method read_input_bits*(self: ModbusCtx, regAddr: uint16, nb: uint16):
-    Future[seq[bool]] {.base, async, locks: "unknown".} =
+    Future[seq[bool]] {.base, async.} =
   discard
 
 method read_registers*(self: ModbusCtx, target: uint8, regAddr: uint16,
-    nb: uint16): Future[seq[uint16]] {.base, async, locks: "unknown".} =
+    nb: uint16): Future[seq[uint16]] {.base, async.} =
   discard
 
 method read_registers*(self: ModbusCtx, regAddr: uint16, nb: uint16):
-    Future[seq[uint16]] {.base, async, locks: "unknown".} =
+    Future[seq[uint16]] {.base, async.} =
   discard
 
 method read_input_registers*(self: ModbusCtx, target: uint8, regAddr: uint16,
-    nb: uint16): Future[seq[uint16]] {.base, async, locks: "unknown".} =
+    nb: uint16): Future[seq[uint16]] {.base, async.} =
   discard
 
 method read_input_registers*(self: ModbusCtx, regAddr: uint16, nb: uint16):
-    Future[seq[uint16]] {.base, async, locks: "unknown".} =
+    Future[seq[uint16]] {.base, async.} =
   discard
 
 method write_bit*(self: ModbusCtx, target: uint8, regAddr: uint16, onoff: bool):
-    Future[bool] {.base, async, locks: "unknown".} =
+    Future[bool] {.base, async.} =
   discard
 
 method write_bit*(self: ModbusCtx, regAddr: uint16, onoff: bool): Future[bool]
-    {.base, async, locks: "unknown".} =
+    {.base, async.} =
   discard
 
 func normalize_regaddr*(regAddr: uint16): Option[uint16] =

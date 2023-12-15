@@ -12,6 +12,7 @@ type
     sock: AsyncSocket
     address: string
     port: Port
+    unitId: uint8
     fut_recv: Future[string]
     transactionId: uint16
     debug: bool
@@ -20,10 +21,11 @@ type
 # ------------------------------------------------------------------------------
 # Constructor:
 # ------------------------------------------------------------------------------
-proc newModbusTcp*(address: string, port: uint16): ModbusTcp =
+proc newModbusTcp*(address: string, port: uint16, unitId: uint8 = 0): ModbusTcp =
   result = new ModbusTcp
   result.address = address
   result.port = Port(port)
+  result.unitId = unitId
 
 # ------------------------------------------------------------------------------
 # API:
@@ -155,7 +157,7 @@ method read_bits*(self: ModbusTcp, target: uint8, regAddr: uint16, nb: uint16):
 
 method read_bits*(self: ModbusTcp, regAddr: uint16, nb: uint16): Future[seq[bool]]
     {.async.} =
-  return await self.read_bits(0, regaddr, nb)
+  return await self.read_bits(self.unitId, regaddr, nb)
 
 # ------------------------------------------------------------------------------
 # Modbus function code 0x02: (read input bits)
@@ -168,7 +170,7 @@ method read_input_bits*(self: ModbusTcp, target: uint8, regAddr: uint16, nb: uin
 
 method read_input_bits*(self: ModbusTcp, regAddr: uint16, nb: uint16):
     Future[seq[bool]] {.async.} =
-  return await self.read_input_bits(0, regaddr, nb)
+  return await self.read_input_bits(self.unitId, regaddr, nb)
 
 # ------------------------------------------------------------------------------
 # Modbus function code 0x03: (read holding registers)
@@ -181,7 +183,7 @@ method read_registers*(self: ModbusTcp, target: uint8, regAddr: uint16, nb: uint
 
 method read_registers*(self: ModbusTcp, regAddr: uint16, nb: uint16):
     Future[seq[uint16]] {.async.} =
-  return await self.read_registers(0, regAddr, nb)
+  return await self.read_registers(self.unitId, regAddr, nb)
 
 # ------------------------------------------------------------------------------
 # Modbus function code 0x04: (read input registers)
@@ -194,7 +196,7 @@ method read_input_registers*(self: ModbusTcp, target: uint8, regAddr: uint16,
 
 method read_input_registers*(self: ModbusTcp, regAddr: uint16, nb: uint16):
     Future[seq[uint16]] {.async.} =
-  return await self.read_input_registers(0, regAddr, nb)
+  return await self.read_input_registers(self.unitId, regAddr, nb)
 
 # ------------------------------------------------------------------------------
 # Modbus function code 0x03: (force single coil)
@@ -212,7 +214,7 @@ method write_bit*(self: ModbusTcp, target: uint8, regAddr: uint16, onoff: bool):
       result = true
 
 method write_bit*(self: ModbusTcp, regAddr: uint16, onoff: bool): Future[bool] {.async.} =
-  return await self.write_bit(0, regAddr, onoff)
+  return await self.write_bit(self.unitId, regAddr, onoff)
 
 
 when isMainModule:
