@@ -13,7 +13,7 @@ const crcTable = createCrcTable(0xa001)
 # ------------------------------------------------------------------------------
 #
 # ------------------------------------------------------------------------------
-proc calc_CRC_Modbus*(buf: openArray[char|uint8]): uint16 =
+proc calcCrcModbus*(buf: openArray[char|uint8]): uint16 =
   result = uint16(0xffff)
   for ch in buf:
     let idx = (ch.uint8 xor (result and 0xff).uint8)
@@ -32,9 +32,9 @@ when isMainModule:
 
   block:
     let buf = [0x01'u8, 0x04, 0x00, 0x00, 0x00, 0x01]
-    let crc = calc_CRC_Modbus(buf)
+    let crc = calcCrcModbus(buf)
     echo &"0x{crc:04x}"
   block:
     let buf = [0x02'u8, 0x01, 0x00, 0x00, 0x00, 0x08]
-    let crc = calc_CRC_Modbus(buf)
+    let crc = calcCrcModbus(buf)
     echo &"0x{crc:04x}"
