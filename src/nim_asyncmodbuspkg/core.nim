@@ -39,47 +39,47 @@ method connect*(self: ModbusCtx, timeout: uint): Future[bool] {.base, async.} =
 method close*(self: ModbusCtx) {.base.} =
   discard
 
-method read_bits*(self: ModbusCtx, target: uint8, regAddr: uint16,
+method readBits*(self: ModbusCtx, target: uint8, regAddr: uint16,
     nb: uint16): Future[seq[bool]] {.base, async.} =
   discard
 
-method read_bits*(self: ModbusCtx, regAddr: uint16, nb: uint16):
+method readBits*(self: ModbusCtx, regAddr: uint16, nb: uint16):
     Future[seq[bool]] {.base, async.} =
   discard
 
-method read_input_bits*(self: ModbusCtx, target: uint8, regAddr: uint16,
+method readInputBits*(self: ModbusCtx, target: uint8, regAddr: uint16,
     nb: uint16): Future[seq[bool]] {.base, async.} =
   discard
 
-method read_input_bits*(self: ModbusCtx, regAddr: uint16, nb: uint16):
+method readInputBits*(self: ModbusCtx, regAddr: uint16, nb: uint16):
     Future[seq[bool]] {.base, async.} =
   discard
 
-method read_registers*(self: ModbusCtx, target: uint8, regAddr: uint16,
+method readRegisters*(self: ModbusCtx, target: uint8, regAddr: uint16,
     nb: uint16): Future[seq[uint16]] {.base, async.} =
   discard
 
-method read_registers*(self: ModbusCtx, regAddr: uint16, nb: uint16):
+method readRegisters*(self: ModbusCtx, regAddr: uint16, nb: uint16):
     Future[seq[uint16]] {.base, async.} =
   discard
 
-method read_input_registers*(self: ModbusCtx, target: uint8, regAddr: uint16,
+method readInputRegisters*(self: ModbusCtx, target: uint8, regAddr: uint16,
     nb: uint16): Future[seq[uint16]] {.base, async.} =
   discard
 
-method read_input_registers*(self: ModbusCtx, regAddr: uint16, nb: uint16):
+method readInputRegisters*(self: ModbusCtx, regAddr: uint16, nb: uint16):
     Future[seq[uint16]] {.base, async.} =
   discard
 
-method write_bit*(self: ModbusCtx, target: uint8, regAddr: uint16, onoff: bool):
+method writeBit*(self: ModbusCtx, target: uint8, regAddr: uint16, onoff: bool):
     Future[bool] {.base, async.} =
   discard
 
-method write_bit*(self: ModbusCtx, regAddr: uint16, onoff: bool): Future[bool]
+method writeBit*(self: ModbusCtx, regAddr: uint16, onoff: bool): Future[bool]
     {.base, async.} =
   discard
 
-func normalize_regaddr*(regAddr: uint16): Option[uint16] =
+func normalizeRegAddr*(regAddr: uint16): Option[uint16] =
   let val = (regAddr mod 10000).uint16
   if val >= 1 and val <= 9999:
     result = some(val)
@@ -87,7 +87,7 @@ func normalize_regaddr*(regAddr: uint16): Option[uint16] =
 # ------------------------------------------------------------------------------
 # Parse Response: function code 0x01/0x02
 # ------------------------------------------------------------------------------
-proc parse_coil_status*(buf: openArray[uint8|char], nb: uint16): seq[bool] =
+proc parseCoilStatus*(buf: openArray[uint8|char], nb: uint16): seq[bool] =
   result = newSeq[bool](nb)
   var idx = 0
   for i in 0 ..< nb.int:
@@ -97,7 +97,7 @@ proc parse_coil_status*(buf: openArray[uint8|char], nb: uint16): seq[bool] =
     if pos == 7:
       idx.inc
 
-proc to_seq_u16*(buf: openArray[uint8|char], pos: int, nb: uint16): seq[uint16] =
+proc toseq_u16*(buf: openArray[uint8|char], pos: int, nb: uint16): seq[uint16] =
   result = newSeqOfCap[uint16](nb)
   for idx in 0 ..< nb.int:
     result.add(buf.get_be16((pos + idx * 2).uint))

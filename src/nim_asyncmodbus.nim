@@ -6,28 +6,28 @@ export FunctionCode, DiagCode
 when isMainModule:
   import std/asyncdispatch
 
-  proc read_do_values(self: ModbusCtx) {.async.} =
+  proc readDoValues(self: ModbusCtx) {.async.} =
     echo "--- get DO 0..7"
-    let coils = await self.read_bits(1, 8)
+    let coils = await self.readBits(1, 8)
     echo coils
 
   proc test_modbus(self: ModbusCtx) {.async.} =
-    await self.read_do_values()
-    let status = await self.read_input_bits(1, 8)
+    await self.readDoValues()
+    let status = await self.readInputBits(1, 8)
     echo status
-    let input_regs = await self.read_input_registers(30001, 17)
+    let input_regs = await self.readInputRegisters(30001, 17)
     echo input_regs
     echo "--- set do0 --> on"
-    discard await self.write_bit(1, true)
-    await self.read_do_values()
+    discard await self.writeBit(1, true)
+    await self.readDoValues()
     echo "--- set do0 --> off"
-    discard await self.write_bit(1, false)
-    await self.read_do_values()
+    discard await self.writeBit(1, false)
+    await self.readDoValues()
 
   proc asyncMain() {.async.} =
     echo "--- Test Modbus/RTU ---"
     let rtu = newModbusRtu("/dev/tnt0", 19200)
-    discard rtu.set_slave(2)
+    discard rtu.seSlave(2)
     discard rtu.connect()
     await rtu.test_modbus()
 
