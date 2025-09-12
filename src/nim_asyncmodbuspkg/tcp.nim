@@ -104,7 +104,7 @@ proc setupHeader(self: ModbusTcp, buf: var openArray[uint8], target: uint8,
 # ------------------------------------------------------------------------------
 # Modbus/TCP Query function
 # ------------------------------------------------------------------------------
-proc queryCommand(self: ModbusTcp, target: uint8, cmd: FunctionCode, regAddr: uint16,
+proc queryCommand*(self: ModbusTcp, target: uint8, cmd: FunctionCode, regAddr: uint16,
     nb: uint16): Future[seq[char]] {.async.} =
   let addr_opt = normalizeRegAddr(regAddr)
   if addr_opt.isNone:
@@ -126,7 +126,7 @@ proc queryCommand(self: ModbusTcp, target: uint8, cmd: FunctionCode, regAddr: ui
 # ------------------------------------------------------------------------------
 # Modbus/TCP Write function
 # ------------------------------------------------------------------------------
-proc writeCommand(self: ModbusTcp, target: uint8, cmd: FunctionCode, regAddr: uint16,
+proc writeCommand*(self: ModbusTcp, target: uint8, cmd: FunctionCode, regAddr: uint16,
     buf: ptr uint8, size: uint8): Future[seq[char]] {.async.} =
   let addr_opt = normalizeRegAddr(regAddr)
   if addr_opt.isNone:

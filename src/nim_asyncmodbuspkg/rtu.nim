@@ -114,7 +114,7 @@ proc checkCrc(buf: openArray[uint8|char]): bool =
 # ------------------------------------------------------------------------------
 #
 # ------------------------------------------------------------------------------
-proc seSlave*(self: ModbusRtu, slaveAddr: uint8): bool =
+proc setSlave*(self: ModbusRtu, slaveAddr: uint8): bool =
   if slaveAddr.isValidAddress:
     self.slaveAddr = slaveAddr
     result = true
@@ -138,7 +138,7 @@ method close*(self: ModbusRtu) =
 # ------------------------------------------------------------------------------
 # Modbus/RTU Query function
 # ------------------------------------------------------------------------------
-proc queryCommand(self: ModbusRtu, slaveAddr: uint8, cmd: FunctionCode,
+proc queryCommand*(self: ModbusRtu, slaveAddr: uint8, cmd: FunctionCode,
     regAddr: uint16, nb: uint16): Future[seq[char]] {.async.} =
   let addr_opt = normalizeRegAddr(regAddr)
   if addr_opt.isNone:
@@ -161,7 +161,7 @@ proc queryCommand(self: ModbusRtu, slaveAddr: uint8, cmd: FunctionCode,
 # ------------------------------------------------------------------------------
 # Modbus/RTU Write function
 # ------------------------------------------------------------------------------
-proc writeCommand(self: ModbusRtu, slaveAddr: uint8, cmd: FunctionCode,
+proc writeCommand*(self: ModbusRtu, slaveAddr: uint8, cmd: FunctionCode,
     regAddr: uint16, buf: ptr uint8, size: uint8): Future[seq[char]] {.async.} =
   let addr_opt = normalizeRegAddr(regAddr)
   if addr_opt.isNone:
@@ -272,7 +272,7 @@ when isMainModule:
 
   proc asyncMain() {.async.} =
     let rtu = newModbusRtu("/dev/ttyS3", 19200)
-    discard rtu.seSlave(2)
+    discard rtu.setSlave(2)
     discard rtu.connect()
     await rtu.readDoValues()
     let status = await rtu.readInputBits(1, 8)
