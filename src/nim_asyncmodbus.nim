@@ -27,7 +27,7 @@ when isMainModule:
   proc asyncMain() {.async.} =
     echo "--- Test Modbus/RTU ---"
     let rtu = newModbusRtu("/dev/tnt0", 19200)
-    discard rtu.seSlave(2)
+    discard rtu.setSlave(2)
     discard rtu.connect()
     await rtu.testModbus()
 
