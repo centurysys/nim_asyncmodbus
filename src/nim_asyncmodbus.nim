@@ -1,6 +1,6 @@
 import nim_asyncmodbuspkg/[core, rtu, tcp]
 export rtu, tcp
-export FunctionCode, DiagCode
+export FunctionCode, DiagCode, ModbusError
 
 
 when isMainModule:
