@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.3.0"
+version       = "0.4.0"
 author        = "Takeyoshi Kikuchi"
 description   = "Nim Asynchronous Modbus library."
 license       = "MIT"
@@ -14,3 +14,4 @@ bin           = @["nim_asyncmodbus"]
 
 requires "nim >= 2.2.4"
 requires "serial >= 1.2.0"
+requires "results >= 0.5.1"

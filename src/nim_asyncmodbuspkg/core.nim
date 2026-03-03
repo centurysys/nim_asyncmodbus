@@ -1,5 +1,8 @@
 import std/asyncdispatch
 import std/options
+import std/tables
+import results
+export results
 
 type
   ModbusCtxObj* = object of RootObj
@@ -31,7 +34,29 @@ type
   CoilStatus* = enum
     CoilOff = 0x0000
     CoilOn = 0xff00
+  ModbusError* = enum
+    meSuccess = 0
+    meInvalidFunction = 1
+    meInvalidAddress = 2
+    meInvalidData = 3
+    meLengthError
+    meCrcError
+    meTimeouted
+    meUnknownError
 
+const ModbusErrorTable = {
+  meSuccess: "Succeeded",
+  meInvalidFunction: "Invalid Function",
+  meInvalidAddress: "Invalid Address",
+  meInvalidData: "Invalid Data",
+  meLengthError: "Payload Length Error",
+  meCrcError: "CRC Error",
+  meTimeouted: "Timeouted",
+  meUnknownError: "Unknown Error"
+}.toTable()
+
+proc toString*(e: ModbusError): string =
+  result = ModbusErrorTable[e]
 
 method connect*(self: ModbusCtx, timeout: uint): Future[bool] {.base, async.} =
   discard
@@ -39,50 +64,74 @@ method connect*(self: ModbusCtx, timeout: uint): Future[bool] {.base, async.} =
 method close*(self: ModbusCtx) {.base.} =
   discard
 
-method readBits*(self: ModbusCtx, target: uint8, regAddr: uint16,
-    nb: uint16): Future[seq[bool]] {.base, async.} =
-  discard
-
-method readBits*(self: ModbusCtx, regAddr: uint16, nb: uint16):
-    Future[seq[bool]] {.base, async.} =
-  discard
-
-method readInputBits*(self: ModbusCtx, target: uint8, regAddr: uint16,
-    nb: uint16): Future[seq[bool]] {.base, async.} =
-  discard
-
-method readInputBits*(self: ModbusCtx, regAddr: uint16, nb: uint16):
-    Future[seq[bool]] {.base, async.} =
-  discard
-
-method readRegisters*(self: ModbusCtx, target: uint8, regAddr: uint16,
-    nb: uint16): Future[seq[uint16]] {.base, async.} =
-  discard
-
-method readRegisters*(self: ModbusCtx, regAddr: uint16, nb: uint16):
-    Future[seq[uint16]] {.base, async.} =
-  discard
-
-method readInputRegisters*(self: ModbusCtx, target: uint8, regAddr: uint16,
-    nb: uint16): Future[seq[uint16]] {.base, async.} =
-  discard
-
-method readInputRegisters*(self: ModbusCtx, regAddr: uint16, nb: uint16):
-    Future[seq[uint16]] {.base, async.} =
-  discard
-
-method writeBit*(self: ModbusCtx, target: uint8, regAddr: uint16, onoff: bool):
-    Future[bool] {.base, async.} =
-  discard
-
-method writeBit*(self: ModbusCtx, regAddr: uint16, onoff: bool): Future[bool]
+method queryCommand*(self: ModbusCtx, slaveAddr: uint8, cmd: FunctionCode,
+    regAddr: uint16, nb: uint16, timeout: int = 0): Future[Result[seq[char], ModbusError]]
     {.base, async.} =
   discard
 
-func normalizeRegAddr*(regAddr: uint16): Option[uint16] =
-  let val = (regAddr mod 10000).uint16
-  if val >= 1 and val <= 9999:
-    result = some(val)
+method readBits*(self: ModbusCtx, target: uint8, regAddr: uint16,
+    nb: uint16): Future[Result[seq[bool], ModbusError]] {.base, async.} =
+  discard
+
+method readBits*(self: ModbusCtx, regAddr: uint16, nb: uint16):
+    Future[Result[seq[bool], ModbusError]] {.base, async.} =
+  discard
+
+method readInputBits*(self: ModbusCtx, target: uint8, regAddr: uint16,
+    nb: uint16): Future[Result[seq[bool], ModbusError]] {.base, async.} =
+  discard
+
+method readInputBits*(self: ModbusCtx, regAddr: uint16, nb: uint16):
+    Future[Result[seq[bool], ModbusError]] {.base, async.} =
+  discard
+
+method readRegisters*(self: ModbusCtx, target: uint8, regAddr: uint16,
+    nb: uint16): Future[Result[seq[uint16], ModbusError]] {.base, async.} =
+  discard
+
+method readRegisters*(self: ModbusCtx, regAddr: uint16, nb: uint16):
+    Future[Result[seq[uint16], ModbusError]] {.base, async.} =
+  discard
+
+method readInputRegisters*(self: ModbusCtx, target: uint8, regAddr: uint16,
+    nb: uint16): Future[Result[seq[uint16], ModbusError]] {.base, async.} =
+  discard
+
+method readInputRegisters*(self: ModbusCtx, regAddr: uint16, nb: uint16):
+    Future[Result[seq[uint16], ModbusError]] {.base, async.} =
+  discard
+
+method writeBit*(self: ModbusCtx, target: uint8, regAddr: uint16, onoff: bool):
+    Future[ModbusError] {.base, async.} =
+  discard
+
+method writeBit*(self: ModbusCtx, regAddr: uint16, onoff: bool): Future[ModbusError]
+    {.base, async.} =
+  discard
+
+func normalizeRegAddr*(regAddr: uint16): uint16 =
+  result = (regAddr mod 10000).uint16
+
+# ------------------------------------------------------------------------------
+# Check Response
+# ------------------------------------------------------------------------------
+proc checkResponse*(buf: openArray[uint8|char]): ModbusError =
+  if buf.len < 5:
+    return meLengthError
+  #let slaveAddr = buf[0].uint8
+  let funcCode = buf[1].uint8
+  if (funcCode and 0x80.uint8) != 0:
+    let exCode = buf[2].uint8
+    let exc = case exCode
+      of 1: meInvalidFunction
+      of 2: meInvalidAddress
+      of 3: meInvalidData
+      else: meUnknownError
+    return exc
+  let dataLen = buf[2].int
+  if not (buf.len in [dataLen + 3, dataLen + 5]):
+    return meLengthError
+  result = meSuccess
 
 # ------------------------------------------------------------------------------
 # Parse Response: function code 0x01/0x02
@@ -97,7 +146,7 @@ proc parseCoilStatus*(buf: openArray[uint8|char], nb: uint16): seq[bool] =
     if pos == 7:
       idx.inc
 
-proc toseq_u16*(buf: openArray[uint8|char], pos: int, nb: uint16): seq[uint16] =
+proc toseqU16*(buf: openArray[uint8|char], pos: int, nb: uint16): seq[uint16] =
   result = newSeqOfCap[uint16](nb)
   for idx in 0 ..< nb.int:
-    result.add(buf.get_be16((pos + idx * 2).uint))
+    result.add(buf.getBe16((pos + idx * 2).uint))
