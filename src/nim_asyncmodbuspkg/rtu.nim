@@ -215,6 +215,10 @@ method close*(self: ModbusRtu) =
 method queryCommand*(self: ModbusRtu, slaveAddr: uint8, cmd: FunctionCode, regAddr: uint16, nb: uint16, timeout: int = 0): Future[Result[seq[char], ModbusError]] {.async.} =
   await self.reqLock.acquire()
   try:
+    let req = checkQueryRequest(cmd, regAddr, nb)
+    if req != meSuccess:
+      return req.err
+
     let address = normalizeRegAddr(regAddr)
     var buf = newSeq[uint8](8)
 
@@ -243,6 +247,10 @@ method queryCommand*(self: ModbusRtu, slaveAddr: uint8, cmd: FunctionCode, regAd
 proc writeCommand*(self: ModbusRtu, slaveAddr: uint8, cmd: FunctionCode, regAddr: uint16, buf: ptr uint8, size: uint8): Future[Result[seq[char], ModbusError]] {.async.} =
   await self.reqLock.acquire()
   try:
+    let req = checkWriteRequest(regAddr)
+    if req != meSuccess:
+      return req.err
+
     let address = normalizeRegAddr(regAddr)
     let payloadLen: uint8 = 4 + size + 2
     var sendbuf = newSeq[uint8](payloadLen)
@@ -358,6 +366,10 @@ method writeBit*(self: ModbusRtu, target: uint8, regAddr: uint16, onoff: bool): 
   if not target.isValidAddress:
     return meInvalidAddress
   else:
+    let addrRes = checkRegAddr(regAddr)
+    if addrRes != meSuccess:
+      return addrRes
+
     let address = normalizeRegAddr(regAddr) - 1
     let expectData = if onoff: CoilOn.uint16 else: CoilOff.uint16
     var buf = newSeq[uint8](2)

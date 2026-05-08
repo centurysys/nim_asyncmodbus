@@ -7,6 +7,7 @@ export results
 type
   ModbusCtxObj* = object of RootObj
   ModbusCtx* = ref ModbusCtxObj
+
   FunctionCode* = enum
     fcReadCoilStatus = 0x01
     fcReadInputStatus = 0x02
@@ -20,8 +21,10 @@ type
     fcForceMultipleCoils = 0x0f
     fcPresetMultipleRegisters = 0x10
     fcReportSlaveId = 0x11
+
   DiagCode* = enum
     dcReturnQueryData = 0x00
+
   ErrorCode* = enum
     errInvalidFunction = 1
     errInvalidAddress = 2
@@ -31,9 +34,11 @@ type
     errServerBusy = 6
     errGatewayProblem0A = 0x0a
     errGatewayProblem0B = 0x0b
+
   CoilStatus* = enum
     CoilOff = 0x0000
     CoilOn = 0xff00
+
   ModbusError* = enum
     meSuccess = 0
     meInvalidFunction = 1
@@ -44,16 +49,17 @@ type
     meTimeouted
     meUnknownError
 
-const ModbusErrorTable = {
-  meSuccess: "Succeeded",
-  meInvalidFunction: "Invalid Function",
-  meInvalidAddress: "Invalid Address",
-  meInvalidData: "Invalid Data",
-  meLengthError: "Payload Length Error",
-  meCrcError: "CRC Error",
-  meTimeouted: "Timeouted",
-  meUnknownError: "Unknown Error"
-}.toTable()
+const
+  ModbusErrorTable = {
+    meSuccess: "Succeeded",
+    meInvalidFunction: "Invalid Function",
+    meInvalidAddress: "Invalid Address",
+    meInvalidData: "Invalid Data",
+    meLengthError: "Payload Length Error",
+    meCrcError: "CRC Error",
+    meTimeouted: "Timeouted",
+    meUnknownError: "Unknown Error"
+  }.toTable()
 
 proc toString*(e: ModbusError): string =
   result = ModbusErrorTable[e]
@@ -65,52 +71,75 @@ method close*(self: ModbusCtx) {.base.} =
   discard
 
 method queryCommand*(self: ModbusCtx, slaveAddr: uint8, cmd: FunctionCode,
-    regAddr: uint16, nb: uint16, timeout: int = 0): Future[Result[seq[char], ModbusError]]
-    {.base, async.} =
+    regAddr: uint16, nb: uint16, timeout: int = 0): Future[Result[seq[char], ModbusError]] {.base, async.} =
   discard
 
-method readBits*(self: ModbusCtx, target: uint8, regAddr: uint16,
-    nb: uint16): Future[Result[seq[bool], ModbusError]] {.base, async.} =
+method readBits*(self: ModbusCtx, target: uint8, regAddr: uint16, nb: uint16): Future[Result[seq[bool], ModbusError]] {.base, async.} =
   discard
 
-method readBits*(self: ModbusCtx, regAddr: uint16, nb: uint16):
-    Future[Result[seq[bool], ModbusError]] {.base, async.} =
+method readBits*(self: ModbusCtx, regAddr: uint16, nb: uint16): Future[Result[seq[bool], ModbusError]] {.base, async.} =
   discard
 
-method readInputBits*(self: ModbusCtx, target: uint8, regAddr: uint16,
-    nb: uint16): Future[Result[seq[bool], ModbusError]] {.base, async.} =
+method readInputBits*(self: ModbusCtx, target: uint8, regAddr: uint16, nb: uint16): Future[Result[seq[bool], ModbusError]] {.base, async.} =
   discard
 
-method readInputBits*(self: ModbusCtx, regAddr: uint16, nb: uint16):
-    Future[Result[seq[bool], ModbusError]] {.base, async.} =
+method readInputBits*(self: ModbusCtx, regAddr: uint16, nb: uint16): Future[Result[seq[bool], ModbusError]] {.base, async.} =
   discard
 
-method readRegisters*(self: ModbusCtx, target: uint8, regAddr: uint16,
-    nb: uint16): Future[Result[seq[uint16], ModbusError]] {.base, async.} =
+method readRegisters*(self: ModbusCtx, target: uint8, regAddr: uint16, nb: uint16): Future[Result[seq[uint16], ModbusError]] {.base, async.} =
   discard
 
-method readRegisters*(self: ModbusCtx, regAddr: uint16, nb: uint16):
-    Future[Result[seq[uint16], ModbusError]] {.base, async.} =
+method readRegisters*(self: ModbusCtx, regAddr: uint16, nb: uint16): Future[Result[seq[uint16], ModbusError]] {.base, async.} =
   discard
 
-method readInputRegisters*(self: ModbusCtx, target: uint8, regAddr: uint16,
-    nb: uint16): Future[Result[seq[uint16], ModbusError]] {.base, async.} =
+method readInputRegisters*(self: ModbusCtx, target: uint8, regAddr: uint16, nb: uint16): Future[Result[seq[uint16], ModbusError]] {.base, async.} =
   discard
 
-method readInputRegisters*(self: ModbusCtx, regAddr: uint16, nb: uint16):
-    Future[Result[seq[uint16], ModbusError]] {.base, async.} =
+method readInputRegisters*(self: ModbusCtx, regAddr: uint16, nb: uint16): Future[Result[seq[uint16], ModbusError]] {.base, async.} =
   discard
 
-method writeBit*(self: ModbusCtx, target: uint8, regAddr: uint16, onoff: bool):
-    Future[ModbusError] {.base, async.} =
+method writeBit*(self: ModbusCtx, target: uint8, regAddr: uint16, onoff: bool): Future[ModbusError] {.base, async.} =
   discard
 
-method writeBit*(self: ModbusCtx, regAddr: uint16, onoff: bool): Future[ModbusError]
-    {.base, async.} =
+method writeBit*(self: ModbusCtx, regAddr: uint16, onoff: bool): Future[ModbusError] {.base, async.} =
   discard
+
+const
+  MaxReadBits* = 2000.uint16
+  MaxReadRegisters* = 125.uint16
 
 func normalizeRegAddr*(regAddr: uint16): uint16 =
   result = (regAddr mod 10000).uint16
+
+func checkRegAddr*(regAddr: uint16): ModbusError =
+  let address = normalizeRegAddr(regAddr)
+  if address == 0:
+    return meInvalidAddress
+
+  result = meSuccess
+
+func checkReadCount*(cmd: FunctionCode, nb: uint16): ModbusError =
+  case cmd
+  of fcReadCoilStatus, fcReadInputStatus:
+    if nb == 0 or nb > MaxReadBits:
+      return meInvalidData
+  of fcReadHoldingRegister, fcReadInputRegister:
+    if nb == 0 or nb > MaxReadRegisters:
+      return meInvalidData
+  else:
+    discard
+
+  result = meSuccess
+
+func checkQueryRequest*(cmd: FunctionCode, regAddr: uint16, nb: uint16): ModbusError =
+  let addrRes = checkRegAddr(regAddr)
+  if addrRes != meSuccess:
+    return addrRes
+
+  result = checkReadCount(cmd, nb)
+
+func checkWriteRequest*(regAddr: uint16): ModbusError =
+  result = checkRegAddr(regAddr)
 
 # ------------------------------------------------------------------------------
 # Check Response
@@ -118,19 +147,26 @@ func normalizeRegAddr*(regAddr: uint16): uint16 =
 proc checkResponse*(buf: openArray[uint8|char]): ModbusError =
   if buf.len < 5:
     return meLengthError
+
   #let slaveAddr = buf[0].uint8
   let funcCode = buf[1].uint8
   if (funcCode and 0x80.uint8) != 0:
     let exCode = buf[2].uint8
     let exc = case exCode
-      of 1: meInvalidFunction
-      of 2: meInvalidAddress
-      of 3: meInvalidData
-      else: meUnknownError
+    of 1:
+      meInvalidFunction
+    of 2:
+      meInvalidAddress
+    of 3:
+      meInvalidData
+    else:
+      meUnknownError
     return exc
+
   let dataLen = buf[2].int
   if not (buf.len in [dataLen + 3, dataLen + 5]):
     return meLengthError
+
   result = meSuccess
 
 # ------------------------------------------------------------------------------

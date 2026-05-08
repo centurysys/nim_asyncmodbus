@@ -160,6 +160,10 @@ method queryCommand*(self: ModbusTcp, slaveAddr: uint8, cmd: FunctionCode,
     Future[Result[seq[char], ModbusError]] {.async.} =
   await self.reqLock.acquire()
   try:
+    let req = checkQueryRequest(cmd, regAddr, nb)
+    if req != meSuccess:
+      return req.err
+
     let address = normalizeRegAddr(regAddr)
     const
       dataLen = 2 + 4
@@ -187,6 +191,10 @@ proc writeCommand*(self: ModbusTcp, target: uint8, cmd: FunctionCode, regAddr: u
     buf: ptr uint8, size: uint8): Future[Result[seq[char], ModbusError]] {.async.} =
   await self.reqLock.acquire()
   try:
+    let req = checkWriteRequest(regAddr)
+    if req != meSuccess:
+      return req.err
+
     let address = normalizeRegAddr(regAddr)
     let
       dataLen: uint8 = 2 + 4 + size
