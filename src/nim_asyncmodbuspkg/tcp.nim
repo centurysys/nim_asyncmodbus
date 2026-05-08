@@ -26,6 +26,7 @@ type
 
 const
   MaxTcpPayloadLength = 254
+  DefaultTcpTimeout = 1000
 
 # ------------------------------------------------------------------------------
 # Constructor:
@@ -133,8 +134,14 @@ proc sendRecv(self: ModbusTcp, payload: string, timeout: int = 0):
     discard self.fut_recv.read()
     self.fut_recv = nil
 
+  let recvTimeout =
+    if timeout > 0:
+      timeout
+    else:
+      DefaultTcpTimeout
+
   if self.sock.isNil or self.sock.isClosed:
-    let connected = if timeout > 0: await self.connect(timeout.uint) else: await self.connect()
+    let connected = await self.connect(recvTimeout.uint)
     if not connected:
       return meTimeouted.err
 
@@ -144,7 +151,7 @@ proc sendRecv(self: ModbusTcp, payload: string, timeout: int = 0):
     self.close()
     return meUnknownError.err
 
-  let header_res = await self.readExact(6, timeout)
+  let header_res = await self.readExact(6, recvTimeout)
   if header_res.isErr:
     return header_res.error.err
 
@@ -155,7 +162,7 @@ proc sendRecv(self: ModbusTcp, payload: string, timeout: int = 0):
     return payloadlen_res.error.err
 
   let payloadlen = payloadlen_res.get()
-  let payload_res = await self.readExact(payloadlen, timeout)
+  let payload_res = await self.readExact(payloadlen, recvTimeout)
   if payload_res.isErr:
     return payload_res.error.err
 
@@ -232,7 +239,7 @@ proc writeCommand*(self: ModbusTcp, target: uint8, cmd: FunctionCode, regAddr: u
     sendbuf.setBe16(4, dataLen)
 
     let payload = sendbuf.toString()
-    let res = await self.sendRecv(payload, 1000)
+    let res = await self.sendRecv(payload)
     if res.isErr:
       return res.error.err
 
