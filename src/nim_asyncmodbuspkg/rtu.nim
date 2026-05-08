@@ -375,7 +375,7 @@ method writeBit*(self: ModbusRtu, target: uint8, regAddr: uint16, onoff: bool): 
       return res.error
 
     let resp = res.get()
-    if resp.len < 8:
+    if resp.len != 8:
       return meLengthError
 
     if resp[0].uint8 != target:
