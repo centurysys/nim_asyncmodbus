@@ -8,6 +8,7 @@ import serial
 
 import ./core
 import ./util
+import ./private/asynclock
 import ./private/crc16
 import ./private/ptrmath
 
@@ -30,6 +31,7 @@ type
     readTimeout: int32
     writeTimeout: int32
     fut_recv: Future[string]
+    reqLock: AsyncLock
     debug: bool
 
   ModbusRtu* = ref ModbusRtuObj
@@ -50,6 +52,7 @@ proc newModbusRtu*(device: string, baud: int32 = 19200, parity = Parity.None, de
   rtu.ser = ser
   rtu.readTimeout = readTimeout
   rtu.writeTimeout = writeTimeout
+  rtu.reqLock = newAsyncLock()
 
   let
     bits_per_char = 10 + (if parity == Parity.None: 0 else: 1)
@@ -210,51 +213,59 @@ method close*(self: ModbusRtu) =
 # Modbus/RTU Query function
 # ------------------------------------------------------------------------------
 method queryCommand*(self: ModbusRtu, slaveAddr: uint8, cmd: FunctionCode, regAddr: uint16, nb: uint16, timeout: int = 0): Future[Result[seq[char], ModbusError]] {.async.} =
-  let address = normalizeRegAddr(regAddr)
-  var buf = newSeq[uint8](8)
+  await self.reqLock.acquire()
+  try:
+    let address = normalizeRegAddr(regAddr)
+    var buf = newSeq[uint8](8)
 
-  buf[0] = slaveAddr
-  buf[1] = cmd.uint8
-  buf.setBe16(2, address - 1)
-  buf.setBe16(4, nb)
-  buf.setCrc(6)
+    buf[0] = slaveAddr
+    buf[1] = cmd.uint8
+    buf.setBe16(2, address - 1)
+    buf.setBe16(4, nb)
+    buf.setCrc(6)
 
-  let payload = buf.toString()
-  let res = await self.sendRecv(payload, timeout)
-  if res.isErr:
-    return res.error.err
+    let payload = buf.toString()
+    let res = await self.sendRecv(payload, timeout)
+    if res.isErr:
+      return res.error.err
 
-  let res_buf = res.get().toSeq()
-  if not res_buf.checkCrc():
-    return meCrcError.err
+    let res_buf = res.get().toSeq()
+    if not res_buf.checkCrc():
+      return meCrcError.err
 
-  result = res_buf.ok
+    result = res_buf.ok
+  finally:
+    self.reqLock.release()
 
 # ------------------------------------------------------------------------------
 # Modbus/RTU Write function
 # ------------------------------------------------------------------------------
 proc writeCommand*(self: ModbusRtu, slaveAddr: uint8, cmd: FunctionCode, regAddr: uint16, buf: ptr uint8, size: uint8): Future[Result[seq[char], ModbusError]] {.async.} =
-  let address = normalizeRegAddr(regAddr)
-  let payloadLen: uint8 = 4 + size + 2
-  var sendbuf = newSeq[uint8](payloadLen)
+  await self.reqLock.acquire()
+  try:
+    let address = normalizeRegAddr(regAddr)
+    let payloadLen: uint8 = 4 + size + 2
+    var sendbuf = newSeq[uint8](payloadLen)
 
-  sendbuf[0] = slaveAddr
-  sendbuf[1] = cmd.uint8
-  sendbuf.setBe16(2, address - 1)
-  for idx in 0 ..< size.int:
-    sendbuf[4 + idx] = buf[idx]
-  sendbuf.setCrc(payloadlen - 2)
+    sendbuf[0] = slaveAddr
+    sendbuf[1] = cmd.uint8
+    sendbuf.setBe16(2, address - 1)
+    for idx in 0 ..< size.int:
+      sendbuf[4 + idx] = buf[idx]
+    sendbuf.setCrc(payloadlen - 2)
 
-  let payload = sendbuf.toString()
-  let res = await self.sendRecv(payload)
-  if res.isErr:
-    return res.error.err
+    let payload = sendbuf.toString()
+    let res = await self.sendRecv(payload)
+    if res.isErr:
+      return res.error.err
 
-  let res_buf = res.get.toSeq()
-  if not res_buf.checkCrc():
-    return meCrcError.err
+    let res_buf = res.get.toSeq()
+    if not res_buf.checkCrc():
+      return meCrcError.err
 
-  result = res_buf.ok
+    result = res_buf.ok
+  finally:
+    self.reqLock.release()
 
 # ------------------------------------------------------------------------------
 # Modbus function code 0x01: (read coil status)
