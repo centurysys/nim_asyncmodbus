@@ -24,6 +24,9 @@ type
 
   ModbusTcp* = ref ModbusTcpObj
 
+const
+  MaxTcpPayloadLength = 254
+
 # ------------------------------------------------------------------------------
 # Constructor:
 # ------------------------------------------------------------------------------
@@ -73,16 +76,24 @@ method close*(self: ModbusTcp) =
 # ------------------------------------------------------------------------------
 #
 # ------------------------------------------------------------------------------
-func checkHeader(self: ModbusTcp, header: openArray[char]): Option[int] =
+func checkHeader(self: ModbusTcp, header: openArray[char]): Result[int, ModbusError] =
   if header.len != 6:
-    return
+    return meLengthError.err
 
   let transactionId = header.getBe16(0)
   let protocolId = header.getBe16(2)
   let length = header.getBe16(4)
 
-  if transactionId == self.transactionId and protocolId == 0:
-    result = some(length.int)
+  if transactionId != self.transactionId:
+    return meUnknownError.err
+
+  if protocolId != 0:
+    return meUnknownError.err
+
+  if length < 3 or length > MaxTcpPayloadLength:
+    return meLengthError.err
+
+  result = length.int.ok
 
 # ------------------------------------------------------------------------------
 #
@@ -138,14 +149,12 @@ proc sendRecv(self: ModbusTcp, payload: string, timeout: int = 0):
     return header_res.error.err
 
   let header = header_res.get()
-  let payloadlen_opt = self.checkHeader(header)
-  if payloadlen_opt.isNone:
-    return meUnknownError.err
+  let payloadlen_res = self.checkHeader(header)
+  if payloadlen_res.isErr:
+    self.close()
+    return payloadlen_res.error.err
 
-  let payloadlen = payloadlen_opt.get()
-  if payloadlen < 3:
-    return meLengthError.err
-
+  let payloadlen = payloadlen_res.get()
   let payload_res = await self.readExact(payloadlen, timeout)
   if payload_res.isErr:
     return payload_res.error.err
