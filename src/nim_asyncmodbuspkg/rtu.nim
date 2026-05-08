@@ -34,16 +34,22 @@ type
 
   ModbusRtu* = ref ModbusRtuObj
 
+const
+  DefaultReadTimeout = 1000.int32
+  DefaultWriteTimeout = 1000.int32
+
 # ------------------------------------------------------------------------------
 # Constructor:
 # ------------------------------------------------------------------------------
-proc newModbusRtu*(device: string, baud: int32 = 19200, parity = Parity.None, debug = false): ModbusRtu =
+proc newModbusRtu*(device: string, baud: int32 = 19200, parity = Parity.None, debug = false, readTimeout: int32 = DefaultReadTimeout, writeTimeout: int32 = DefaultWriteTimeout): ModbusRtu =
   let ser = newAsyncSerialPort(device)
   let rtu = new ModbusRtu
 
   rtu.port = device
   rtu.params = SerialParams(baud: baud, parity: parity, dataBits: 8.byte, stopBits: StopBits.One)
   rtu.ser = ser
+  rtu.readTimeout = readTimeout
+  rtu.writeTimeout = writeTimeout
 
   let
     bits_per_char = 10 + (if parity == Parity.None: 0 else: 1)
@@ -152,7 +158,15 @@ proc sendRecv(self: ModbusRtu, payload: string, timeout: int = 0): Future[Result
   discard await self.ser.write(payload)
   await self.wait()
 
-  let buf_res = await self.read(self.readTimeout)
+  let readTimeout =
+    if timeout > 0:
+      timeout
+    elif self.readTimeout > 0:
+      self.readTimeout.int
+    else:
+      DefaultReadTimeout.int
+
+  let buf_res = await self.read(readTimeout)
   if buf_res.isErr:
     return buf_res
 
