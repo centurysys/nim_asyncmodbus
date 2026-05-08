@@ -228,7 +228,7 @@ proc writeCommand*(self: ModbusTcp, target: uint8, cmd: FunctionCode, regAddr: u
 
     let address = normalizeRegAddr(regAddr)
     let
-      dataLen: uint8 = 2 + 4 + size
+      dataLen: uint8 = 2 + 2 + size
       payloadLen: uint8 = 6 + dataLen
 
     var sendbuf = newSeq[uint8](payloadLen)
