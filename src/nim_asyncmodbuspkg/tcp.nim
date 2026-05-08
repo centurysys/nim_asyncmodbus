@@ -140,7 +140,12 @@ proc sendRecv(self: ModbusTcp, payload: string, timeout: int = 0):
   if payload_res.isErr:
     return payload_res.error.err
 
-  result = payload_res.get().ok
+  let response = payload_res.get()
+  let exc = checkExceptionResponse(response)
+  if exc.isSome:
+    return exc.get().err
+
+  result = response.ok
 
 # ------------------------------------------------------------------------------
 #

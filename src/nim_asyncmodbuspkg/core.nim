@@ -144,24 +144,42 @@ func checkWriteRequest*(regAddr: uint16): ModbusError =
 # ------------------------------------------------------------------------------
 # Check Response
 # ------------------------------------------------------------------------------
-proc checkResponse*(buf: openArray[uint8|char]): ModbusError =
-  if buf.len < 5:
+proc checkExceptionResponse*[T: uint8|char](buf: openArray[T],
+    hasCrc: bool = false): Option[ModbusError] =
+  if buf.len < 2:
+    return
+
+  let funcCode = buf[1].uint8
+  if (funcCode and 0x80.uint8) == 0:
+    return
+
+  let expectedLen = if hasCrc: 5 else: 3
+  if buf.len != expectedLen:
+    return some(meLengthError)
+
+  let exCode = buf[2].uint8
+  let exc = case exCode
+  of 1:
+    meInvalidFunction
+  of 2:
+    meInvalidAddress
+  of 3:
+    meInvalidData
+  else:
+    meUnknownError
+  result = some(exc)
+
+proc checkResponse*[T: uint8|char](buf: openArray[T]): ModbusError =
+  if buf.len < 2:
     return meLengthError
 
-  #let slaveAddr = buf[0].uint8
-  let funcCode = buf[1].uint8
-  if (funcCode and 0x80.uint8) != 0:
-    let exCode = buf[2].uint8
-    let exc = case exCode
-    of 1:
-      meInvalidFunction
-    of 2:
-      meInvalidAddress
-    of 3:
-      meInvalidData
-    else:
-      meUnknownError
-    return exc
+  let hasCrc = buf.len == 5
+  let exc = checkExceptionResponse(buf, hasCrc)
+  if exc.isSome:
+    return exc.get()
+
+  if buf.len < 5:
+    return meLengthError
 
   let dataLen = buf[2].int
   if not (buf.len in [dataLen + 3, dataLen + 5]):
@@ -178,7 +196,7 @@ func expectedReadByteCount*(cmd: FunctionCode, nb: uint16): int =
   else:
     result = -1
 
-proc checkReadResponse*(buf: openArray[uint8|char], slaveAddr: uint8,
+proc checkReadResponse*[T: uint8|char](buf: openArray[T], slaveAddr: uint8,
     cmd: FunctionCode, nb: uint16, hasCrc: bool = false): ModbusError =
   let resp = checkResponse(buf)
   if resp != meSuccess:

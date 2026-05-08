@@ -138,19 +138,9 @@ proc checkRawResponse(buf: openArray[uint8|char]): ModbusError =
   if not buf.checkCrc():
     return meCrcError
 
-  let funcCode = buf[1].uint8
-  if (funcCode and 0x80.uint8) != 0:
-    let exCode = buf[2].uint8
-    let exc = case exCode
-    of 1:
-      meInvalidFunction
-    of 2:
-      meInvalidAddress
-    of 3:
-      meInvalidData
-    else:
-      meUnknownError
-    return exc
+  let exc = checkExceptionResponse(buf, hasCrc = true)
+  if exc.isSome:
+    return exc.get()
 
   result = meSuccess
 
