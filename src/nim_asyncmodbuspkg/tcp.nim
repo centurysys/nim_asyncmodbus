@@ -46,15 +46,19 @@ method connect*(self: ModbusTcp, timeout: uint = 0): Future[bool] {.async.} =
       # already connected
       return true
 
-  let fut_sock = asyncnet.dial(self.address, self.port)
-  if timeout > 0:
-    let connected = await withTimeout(fut_sock, timeout.int)
-    if not connected:
-      return
-    self.sock = fut_sock.read()
-  else:
-    self.sock = await fut_sock
-  result = true
+  try:
+    let fut_sock = asyncnet.dial(self.address, self.port)
+    if timeout > 0:
+      let connected = await withTimeout(fut_sock, timeout.int)
+      if not connected:
+        return false
+      self.sock = fut_sock.read()
+    else:
+      self.sock = await fut_sock
+    result = true
+  except:
+    self.sock = nil
+    result = false
 
 # ------------------------------------------------------------------------------
 # API:
@@ -119,9 +123,15 @@ proc sendRecv(self: ModbusTcp, payload: string, timeout: int = 0):
     self.fut_recv = nil
 
   if self.sock.isNil or self.sock.isClosed:
-    discard await self.connect()
+    let connected = if timeout > 0: await self.connect(timeout.uint) else: await self.connect()
+    if not connected:
+      return meTimeouted.err
 
-  await self.sock.send(payload)
+  try:
+    await self.sock.send(payload)
+  except:
+    self.close()
+    return meUnknownError.err
 
   let header_res = await self.readExact(6, timeout)
   if header_res.isErr:
