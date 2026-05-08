@@ -301,9 +301,14 @@ method readInputRegisters*(self: ModbusTcp, regAddr: uint16, nb: uint16):
 # ------------------------------------------------------------------------------
 method writeBit*(self: ModbusTcp, target: uint8, regAddr: uint16, onoff: bool):
     Future[ModbusError] {.async.} =
+  let addrRes = checkRegAddr(regAddr)
+  if addrRes != meSuccess:
+    return addrRes
+
+  let address = normalizeRegAddr(regAddr) - 1
+  let expectData = if onoff: CoilOn.uint16 else: CoilOff.uint16
   var buf = newSeq[uint8](2)
-  if onoff:
-    buf.setBe16(0, CoilOn.uint16)
+  buf.setBe16(0, expectData)
 
   let res = await self.writeCommand(target, fcForceSingleCoil, regAddr, addr buf[0], 2)
   if res.isErr:
@@ -313,12 +318,19 @@ method writeBit*(self: ModbusTcp, target: uint8, regAddr: uint16, onoff: bool):
   if resp.len < 6:
     return meLengthError
 
-  let data = resp.getBe16(4)
-  if ((data == CoilOn.uint16) and onoff) or
-      ((data == CoilOff.uint16) and (not onoff)):
-    result = meSuccess
-  else:
-    result = meUnknownError
+  if resp[0].uint8 != target:
+    return meUnknownError
+
+  if resp[1].uint8 != fcForceSingleCoil.uint8:
+    return meUnknownError
+
+  if resp.getBe16(2) != address:
+    return meUnknownError
+
+  if resp.getBe16(4) != expectData:
+    return meUnknownError
+
+  result = meSuccess
 
 method writeBit*(self: ModbusTcp, regAddr: uint16, onoff: bool): Future[ModbusError] {.async.} =
   return await self.writeBit(self.unitId, regAddr, onoff)
