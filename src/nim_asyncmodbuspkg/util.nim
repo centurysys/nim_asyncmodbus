@@ -26,20 +26,25 @@ proc setLe16(p: ptr uint8, val: uint16) =
   p[] = val.lbyte
   (p + 1)[] = val.hbyte
 
+func hasU16(bufLen: int, pos: uint): bool =
+  if bufLen < 2:
+    return false
+  result = pos <= (bufLen - 2).uint
+
 func getBe16*(s: openArray[uint8|char], pos: uint): uint16 =
-  if pos < s.len.uint:
+  if hasU16(s.len, pos):
     result = getBe16(cast[ptr uint8](unsafeAddr s[pos]))
 
 func getLe16*(s: openArray[uint8|char], pos: uint): uint16 =
-  if pos < s.len.uint:
+  if hasU16(s.len, pos):
     result = getLe16(cast[ptr uint8](unsafeAddr s[pos]))
 
 proc setBe16*(s: openArray[uint8|char], pos: uint, val: uint16) =
-  if pos < s.len.uint:
+  if hasU16(s.len, pos):
     setBe16((unsafeAddr s[pos]), val)
 
 proc setLe16*(s: openArray[uint8|char], pos: uint, val: uint16) =
-  if pos < s.len.uint:
+  if hasU16(s.len, pos):
     setLe16((unsafeAddr s[pos]), val)
 
 proc toString*(buf: openArray[uint8|char]): string =
