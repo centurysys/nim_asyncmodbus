@@ -77,7 +77,7 @@ proc wait(self: ModbusRtu) {.async.} =
 # ------------------------------------------------------------------------------
 #
 # ------------------------------------------------------------------------------
-proc read(self: ModbusRtu, timeout: int = 0): Future[Result[string, ModbusError]] {.async.} =
+proc read(self: ModbusRtu, timeout: int = 0, expectedLen: int = 0): Future[Result[string, ModbusError]] {.async.} =
   var
     buf = newStringOfCap(512)
     first = true
@@ -107,6 +107,9 @@ proc read(self: ModbusRtu, timeout: int = 0): Future[Result[string, ModbusError]
     buf.add(ch)
     self.fut_recv = nil
     first = false
+
+    if expectedLen > 0 and buf.len >= expectedLen:
+      break
 
   if buf.len > 0:
     buf.setLen(buf.len)
@@ -147,7 +150,7 @@ proc checkRawResponse(buf: openArray[uint8|char]): ModbusError =
 # ------------------------------------------------------------------------------
 #
 # ------------------------------------------------------------------------------
-proc sendRecv(self: ModbusRtu, payload: string, timeout: int = 0): Future[Result[string, ModbusError]] {.async.} =
+proc sendRecv(self: ModbusRtu, payload: string, timeout: int = 0, expectedLen: int = 0): Future[Result[string, ModbusError]] {.async.} =
   discard await self.ser.write(payload)
   await self.wait()
 
@@ -159,7 +162,7 @@ proc sendRecv(self: ModbusRtu, payload: string, timeout: int = 0): Future[Result
     else:
       DefaultReadTimeout.int
 
-  let buf_res = await self.read(readTimeout)
+  let buf_res = await self.read(readTimeout, expectedLen)
   if buf_res.isErr:
     return buf_res
 
@@ -219,7 +222,8 @@ method queryCommand*(self: ModbusRtu, slaveAddr: uint8, cmd: FunctionCode, regAd
     buf.setCrc(6)
 
     let payload = buf.toString()
-    let res = await self.sendRecv(payload, timeout)
+    let expectedLen = 3 + expectedReadByteCount(cmd, nb) + 2
+    let res = await self.sendRecv(payload, timeout, expectedLen)
     if res.isErr:
       return res.error.err
 
@@ -253,7 +257,8 @@ proc writeCommand*(self: ModbusRtu, slaveAddr: uint8, cmd: FunctionCode, regAddr
     sendbuf.setCrc(payloadlen - 2)
 
     let payload = sendbuf.toString()
-    let res = await self.sendRecv(payload)
+    let expectedLen = 8
+    let res = await self.sendRecv(payload, expectedLen = expectedLen)
     if res.isErr:
       return res.error.err
 
