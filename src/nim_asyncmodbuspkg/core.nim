@@ -178,7 +178,7 @@ proc checkResponse*[T: uint8|char](buf: openArray[T]): ModbusError =
   if exc.isSome:
     return exc.get()
 
-  if buf.len < 5:
+  if buf.len < 3:
     return meLengthError
 
   let dataLen = buf[2].int
