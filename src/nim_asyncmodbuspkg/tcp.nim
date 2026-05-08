@@ -226,7 +226,7 @@ method readBits*(self: ModbusTcp, target: uint8, regAddr: uint16, nb: uint16):
     return res.error.err
 
   let payload = res.get()
-  let resp = checkResponse(payload)
+  let resp = checkReadResponse(payload, target, fcReadCoilStatus, nb)
   if resp != meSuccess:
     return resp.err
 
@@ -246,7 +246,7 @@ method readInputBits*(self: ModbusTcp, target: uint8, regAddr: uint16, nb: uint1
     return res.error.err
 
   let payload = res.get()
-  let resp = checkResponse(payload)
+  let resp = checkReadResponse(payload, target, fcReadInputStatus, nb)
   if resp != meSuccess:
     return resp.err
 
@@ -266,7 +266,7 @@ method readRegisters*(self: ModbusTcp, target: uint8, regAddr: uint16, nb: uint1
     return res.error.err
 
   let payload = res.get()
-  let resp = checkResponse(payload)
+  let resp = checkReadResponse(payload, target, fcReadHoldingRegister, nb)
   if resp != meSuccess:
     return resp.err
 
@@ -286,7 +286,7 @@ method readInputRegisters*(self: ModbusTcp, target: uint8, regAddr: uint16,
     return res.error.err
 
   let payload = res.get()
-  let resp = checkResponse(payload)
+  let resp = checkReadResponse(payload, target, fcReadInputRegister, nb)
   if resp != meSuccess:
     return resp.err
 

@@ -169,6 +169,40 @@ proc checkResponse*(buf: openArray[uint8|char]): ModbusError =
 
   result = meSuccess
 
+func expectedReadByteCount*(cmd: FunctionCode, nb: uint16): int =
+  case cmd
+  of fcReadCoilStatus, fcReadInputStatus:
+    result = (nb.int + 7) div 8
+  of fcReadHoldingRegister, fcReadInputRegister:
+    result = nb.int * 2
+  else:
+    result = -1
+
+proc checkReadResponse*(buf: openArray[uint8|char], slaveAddr: uint8,
+    cmd: FunctionCode, nb: uint16, hasCrc: bool = false): ModbusError =
+  let resp = checkResponse(buf)
+  if resp != meSuccess:
+    return resp
+
+  if buf[0].uint8 != slaveAddr:
+    return meUnknownError
+
+  if buf[1].uint8 != cmd.uint8:
+    return meUnknownError
+
+  let expectedByteCount = expectedReadByteCount(cmd, nb)
+  if expectedByteCount < 0:
+    return meInvalidFunction
+
+  if buf[2].int != expectedByteCount:
+    return meLengthError
+
+  let expectedLen = expectedByteCount + 3 + (if hasCrc: 2 else: 0)
+  if buf.len != expectedLen:
+    return meLengthError
+
+  result = meSuccess
+
 # ------------------------------------------------------------------------------
 # Parse Response: function code 0x01/0x02
 # ------------------------------------------------------------------------------

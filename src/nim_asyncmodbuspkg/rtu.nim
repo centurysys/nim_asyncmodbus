@@ -287,7 +287,7 @@ method readBits*(self: ModbusRtu, target: uint8, regAddr: uint16, nb: uint16): F
       return buf_res.error.err
 
     let buf = buf_res.get()
-    let res = buf.checkResponse()
+    let res = buf.checkReadResponse(target, fcReadCoilStatus, nb, hasCrc = true)
     if res != meSuccess:
       return res.err
 
@@ -308,7 +308,7 @@ method readInputBits*(self: ModbusRtu, target: uint8, regAddr: uint16, nb: uint1
       return buf_res.error.err
 
     let buf = buf_res.get()
-    let res = buf.checkResponse()
+    let res = buf.checkReadResponse(target, fcReadInputStatus, nb, hasCrc = true)
     if res != meSuccess:
       return res.err
 
@@ -329,7 +329,7 @@ method readRegisters*(self: ModbusRtu, target: uint8, regAddr: uint16, nb: uint1
       return buf_res.error.err
 
     let buf = buf_res.get()
-    let res = buf.checkResponse()
+    let res = buf.checkReadResponse(target, fcReadHoldingRegister, nb, hasCrc = true)
     if res != meSuccess:
       return res.err
 
@@ -350,7 +350,7 @@ method readInputRegisters*(self: ModbusRtu, target: uint8, regAddr: uint16, nb: 
       return buf_res.error.err
 
     let buf = buf_res.get()
-    let res = buf.checkResponse()
+    let res = buf.checkReadResponse(target, fcReadInputRegister, nb, hasCrc = true)
     if res != meSuccess:
       return res.err
 
