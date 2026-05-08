@@ -83,26 +83,36 @@ proc read(self: ModbusRtu, timeout: int = 0, expectedLen: int = 0): Future[Resul
     first = true
 
   if not self.fut_recv.isNil and self.fut_recv.finished:
-    discard self.fut_recv.read()
+    try:
+      discard self.fut_recv.read()
+    except:
+      discard
     self.fut_recv = nil
 
   while true:
     if self.fut_recv.isNil:
-      self.fut_recv = self.ser.read(1)
+      try:
+        self.fut_recv = self.ser.read(1)
+      except:
+        return meUnknownError.err
 
     var ch: string
 
-    if not first or timeout > 0:
-      let read_timeout = if first: timeout else: self.interval
-      let received = await withTimeout(self.fut_recv, read_timeout)
-      if not received:
-        if buf.len == 0:
-          return err(meTimeouted)
-        else:
-          break
-      ch = self.fut_recv.read()
-    else:
-      ch = await self.fut_recv
+    try:
+      if not first or timeout > 0:
+        let read_timeout = if first: timeout else: self.interval
+        let received = await withTimeout(self.fut_recv, read_timeout)
+        if not received:
+          if buf.len == 0:
+            return err(meTimeouted)
+          else:
+            break
+        ch = self.fut_recv.read()
+      else:
+        ch = await self.fut_recv
+    except:
+      self.fut_recv = nil
+      return meUnknownError.err
 
     buf.add(ch)
     self.fut_recv = nil
@@ -151,7 +161,11 @@ proc checkRawResponse(buf: openArray[uint8|char]): ModbusError =
 #
 # ------------------------------------------------------------------------------
 proc sendRecv(self: ModbusRtu, payload: string, timeout: int = 0, expectedLen: int = 0): Future[Result[string, ModbusError]] {.async.} =
-  discard await self.ser.write(payload)
+  try:
+    discard await self.ser.write(payload)
+  except:
+    return meUnknownError.err
+
   await self.wait()
 
   let readTimeout =
