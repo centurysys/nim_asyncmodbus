@@ -58,9 +58,10 @@ method connect*(self: ModbusTcp, timeout: uint = 0): Future[bool] {.async.} =
 # ------------------------------------------------------------------------------
 method close*(self: ModbusTcp) =
   if not self.sock.isNil:
-    if self.sock.isClosed:
+    if not self.sock.isClosed:
       self.sock.close()
-      self.sock = nil
+    self.sock = nil
+  self.fut_recv = nil
 
 # ------------------------------------------------------------------------------
 #
@@ -79,6 +80,35 @@ func checkHeader(self: ModbusTcp, header: openArray[char]): Option[int] =
 # ------------------------------------------------------------------------------
 #
 # ------------------------------------------------------------------------------
+proc readExact(self: ModbusTcp, size: int, timeout: int = 0):
+  Future[Result[string, ModbusError]] {.async.} =
+  var buf = newStringOfCap(size)
+
+  while buf.len < size:
+    self.fut_recv = self.sock.recv(size - buf.len)
+
+    var chunk = ""
+    if timeout > 0:
+      let ok = await withTimeout(self.fut_recv, timeout)
+      if not ok:
+        self.close()
+        return meTimeouted.err
+      chunk = self.fut_recv.read()
+    else:
+      chunk = await self.fut_recv
+
+    self.fut_recv = nil
+    if chunk.len == 0:
+      self.close()
+      return meLengthError.err
+
+    buf.add(chunk)
+
+  result = buf.ok
+
+# ------------------------------------------------------------------------------
+#
+# ------------------------------------------------------------------------------
 proc sendRecv(self: ModbusTcp, payload: string, timeout: int = 0):
   Future[Result[string, ModbusError]] {.async.} =
   if not self.fut_recv.isNil and self.fut_recv.finished:
@@ -90,14 +120,11 @@ proc sendRecv(self: ModbusTcp, payload: string, timeout: int = 0):
 
   await self.sock.send(payload)
 
-  self.fut_recv = self.sock.recv(6)
-  let ok = await withTimeout(self.fut_recv, timeout)
-  if not ok:
-    return meTimeouted.err
+  let header_res = await self.readExact(6, timeout)
+  if header_res.isErr:
+    return header_res.error.err
 
-  let header = self.fut_recv.read()
-  self.fut_recv = nil
-
+  let header = header_res.get()
   let payloadlen_opt = self.checkHeader(header)
   if payloadlen_opt.isNone:
     return meUnknownError.err
@@ -106,11 +133,11 @@ proc sendRecv(self: ModbusTcp, payload: string, timeout: int = 0):
   if payloadlen < 3:
     return meLengthError.err
 
-  let recv_payload = await self.sock.recv(payloadlen)
-  if recv_payload.len != payloadlen:
-    return meLengthError.err
+  let payload_res = await self.readExact(payloadlen, timeout)
+  if payload_res.isErr:
+    return payload_res.error.err
 
-  result = recv_payload.ok
+  result = payload_res.get().ok
 
 # ------------------------------------------------------------------------------
 #
