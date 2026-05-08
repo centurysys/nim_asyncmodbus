@@ -107,14 +107,18 @@ proc readExact(self: ModbusTcp, size: int, timeout: int = 0):
     self.fut_recv = self.sock.recv(size - buf.len)
 
     var chunk = ""
-    if timeout > 0:
-      let ok = await withTimeout(self.fut_recv, timeout)
-      if not ok:
-        self.close()
-        return meTimeouted.err
-      chunk = self.fut_recv.read()
-    else:
-      chunk = await self.fut_recv
+    try:
+      if timeout > 0:
+        let ok = await withTimeout(self.fut_recv, timeout)
+        if not ok:
+          self.close()
+          return meTimeouted.err
+        chunk = self.fut_recv.read()
+      else:
+        chunk = await self.fut_recv
+    except:
+      self.close()
+      return meUnknownError.err
 
     self.fut_recv = nil
     if chunk.len == 0:
