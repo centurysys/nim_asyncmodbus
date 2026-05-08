@@ -11,6 +11,7 @@ import ./util
 import ./private/asynclock
 import ./private/crc16
 import ./private/ptrmath
+import ./private/rtuframe
 
 
 type
@@ -226,16 +227,7 @@ method queryCommand*(self: ModbusRtu, slaveAddr: uint8, cmd: FunctionCode, regAd
     if req != meSuccess:
       return req.err
 
-    let address = normalizeRegAddr(regAddr)
-    var buf = newSeq[uint8](8)
-
-    buf[0] = slaveAddr
-    buf[1] = cmd.uint8
-    buf.setBe16(2, address - 1)
-    buf.setBe16(4, nb)
-    buf.setCrc(6)
-
-    let payload = buf.toString()
+    let payload = buildRtuQueryFrame(slaveAddr, cmd, regAddr, nb).toString()
     let expectedLen = 3 + expectedReadByteCount(cmd, nb) + 2
     let res = await self.sendRecv(payload, timeout, expectedLen)
     if res.isErr:
@@ -259,18 +251,11 @@ proc writeCommand*(self: ModbusRtu, slaveAddr: uint8, cmd: FunctionCode, regAddr
     if req != meSuccess:
       return req.err
 
-    let address = normalizeRegAddr(regAddr)
-    let payloadLen: uint8 = 4 + size + 2
-    var sendbuf = newSeq[uint8](payloadLen)
-
-    sendbuf[0] = slaveAddr
-    sendbuf[1] = cmd.uint8
-    sendbuf.setBe16(2, address - 1)
+    var data = newSeq[uint8](size.int)
     for idx in 0 ..< size.int:
-      sendbuf[4 + idx] = buf[idx]
-    sendbuf.setCrc(payloadlen - 2)
+      data[idx] = buf[idx]
 
-    let payload = sendbuf.toString()
+    let payload = buildRtuWriteFrame(slaveAddr, cmd, regAddr, data).toString()
     let expectedLen = 8
     let res = await self.sendRecv(payload, expectedLen = expectedLen)
     if res.isErr:
