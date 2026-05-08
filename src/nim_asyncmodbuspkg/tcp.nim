@@ -10,6 +10,7 @@ import ./core
 import ./util
 import ./private/asynclock
 import ./private/ptrmath
+import ./private/tcpframe
 
 type
   ModbusTcpObj = object of ModbusCtxObj
@@ -178,16 +179,6 @@ proc sendRecv(self: ModbusTcp, payload: string, timeout: int = 0):
   result = response.ok
 
 # ------------------------------------------------------------------------------
-#
-# ------------------------------------------------------------------------------
-proc setupHeader(self: ModbusTcp, buf: var openArray[uint8], target: uint8,
-    cmd: FunctionCode) =
-  self.transactionId.inc
-  buf.setBe16(0, self.transactionId)
-  buf[6] = target
-  buf[7] = cmd.uint8
-
-# ------------------------------------------------------------------------------
 # Modbus/TCP Query function
 # ------------------------------------------------------------------------------
 method queryCommand*(self: ModbusTcp, slaveAddr: uint8, cmd: FunctionCode,
@@ -199,18 +190,9 @@ method queryCommand*(self: ModbusTcp, slaveAddr: uint8, cmd: FunctionCode,
     if req != meSuccess:
       return req.err
 
-    let address = normalizeRegAddr(regAddr)
-    const
-      dataLen = 2 + 4
-      payloadLen = 6 + dataLen
-
-    var buf = newSeq[uint8](payloadLen)
-    self.setupHeader(buf, slaveAddr, cmd)
-    buf.setBe16(8, address - 1)
-    buf.setBe16(10, nb.uint16)
-    buf.setBe16(4, dataLen)
-
-    let payload = buf.toString()
+    self.transactionId.inc
+    let payload = buildTcpQueryFrame(
+      self.transactionId, slaveAddr, cmd, regAddr, nb).toString()
     let res = await self.sendRecv(payload, timeout)
     if res.isErr:
       return res.error.err
@@ -230,19 +212,13 @@ proc writeCommand*(self: ModbusTcp, target: uint8, cmd: FunctionCode, regAddr: u
     if req != meSuccess:
       return req.err
 
-    let address = normalizeRegAddr(regAddr)
-    let
-      dataLen: uint8 = 2 + 2 + size
-      payloadLen: uint8 = 6 + dataLen
-
-    var sendbuf = newSeq[uint8](payloadLen)
-    self.setupHeader(sendbuf, target, cmd)
-    sendbuf.setBe16(8, address - 1)
+    var data = newSeq[uint8](size.int)
     for idx in 0 ..< size.int:
-      sendbuf[10 + idx] = buf[idx]
-    sendbuf.setBe16(4, dataLen)
+      data[idx] = buf[idx]
 
-    let payload = sendbuf.toString()
+    self.transactionId.inc
+    let payload = buildTcpWriteFrame(
+      self.transactionId, target, cmd, regAddr, data).toString()
     let res = await self.sendRecv(payload)
     if res.isErr:
       return res.error.err
